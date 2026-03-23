@@ -22,8 +22,12 @@
 - Month timeline model с week columns для выбранного месяца
 - Логика вычисления позиции задачи по неделям с учётом частичного пересечения месяца
 - Группировка roadmap-строк по assignee и stacking overlapping tasks в отдельные lanes
+- Интерактивное переключение месяцев и фильтров с полным re-render текущего среза
+- Поиск по `title`, `assignee`, `stream`, `initiative` и `objective`
+- Явный выбор задачи по клику и empty states для grid и details panel
+- Summary metrics для видимых задач, assignees, streams и overloaded members
 - Базовый grid-рендер для проверки корректности раскладки без финального UI
-- Простой capacity summary по видимой нагрузке на assignee
+- Capacity panel с monthly active task counts, load status и weekly overlap signal по assignee
 
 ## Что намеренно не сделано
 

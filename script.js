@@ -190,11 +190,9 @@
       var searchableText = [
         task.title,
         task.assignee,
-        task.role,
         task.stream,
         task.initiative,
-        task.objective,
-        task.notes
+        task.objective
       ]
         .join(" ")
         .toLowerCase();
@@ -333,20 +331,122 @@
   }
 
   function getSelectedTaskItem(items) {
-    var selectedItem = items.find(function (item) {
+    return (
+      items.find(function (item) {
+        return item.task.id === appState.selectedTaskId;
+      }) || null
+    );
+  }
+
+  function hasSelectedTask(items) {
+    return items.some(function (item) {
       return item.task.id === appState.selectedTaskId;
     });
-
-    if (selectedItem) {
-      return selectedItem;
-    }
-
-    return items[0] || null;
   }
 
   function syncSelectedTask(items) {
-    var selectedItem = getSelectedTaskItem(items);
-    appState.selectedTaskId = selectedItem ? selectedItem.task.id : "";
+    if (!hasSelectedTask(items)) {
+      appState.selectedTaskId = "";
+    }
+  }
+
+  function getSummaryMetrics(items, capacityData) {
+    var assigneeSet = {};
+    var streamSet = {};
+    var overloadedCount = 0;
+
+    items.forEach(function (item) {
+      assigneeSet[item.task.assignee] = true;
+      streamSet[item.task.stream] = true;
+    });
+
+    capacityData.forEach(function (member) {
+      if (member.loadStatus === "Overloaded") {
+        overloadedCount += 1;
+      }
+    });
+
+    return {
+      visibleTaskCount: items.length,
+      assigneeCount: Object.keys(assigneeSet).length,
+      streamCount: Object.keys(streamSet).length,
+      overloadedCount: overloadedCount
+    };
+  }
+
+  function getLoadStatus(activeTaskCount) {
+    if (activeTaskCount >= 4) {
+      return "Overloaded";
+    }
+
+    if (activeTaskCount === 3) {
+      return "Warning";
+    }
+
+    return "OK";
+  }
+
+  function calculateWeeklyOverlapSignal(items, weekCount) {
+    var overlapByWeek = [];
+    var maxConcurrentTasks = 0;
+
+    for (var weekIndex = 0; weekIndex < weekCount; weekIndex += 1) {
+      var activeCount = items.reduce(function (count, item) {
+        var isActiveInWeek = item.startWeekIndex <= weekIndex && item.endWeekIndex >= weekIndex;
+        return count + (isActiveInWeek ? 1 : 0);
+      }, 0);
+
+      overlapByWeek.push(activeCount);
+      maxConcurrentTasks = Math.max(maxConcurrentTasks, activeCount);
+    }
+
+    var overlappingWeekCount = overlapByWeek.filter(function (count) {
+      return count > 1;
+    }).length;
+
+    return {
+      maxConcurrentTasks: maxConcurrentTasks,
+      overlappingWeekCount: overlappingWeekCount,
+      hasOverlap: overlappingWeekCount > 0
+    };
+  }
+
+  function buildCapacityData(items, timeline) {
+    if (!timeline) {
+      return [];
+    }
+
+    var membersByAssignee = {};
+
+    items.forEach(function (item) {
+      if (!membersByAssignee[item.task.assignee]) {
+        membersByAssignee[item.task.assignee] = {
+          assignee: item.task.assignee,
+          role: item.task.role,
+          items: []
+        };
+      }
+
+      membersByAssignee[item.task.assignee].items.push(item);
+    });
+
+    return Object.keys(membersByAssignee)
+      .sort()
+      .map(function (assignee) {
+        var member = membersByAssignee[assignee];
+        var overlapSignal = calculateWeeklyOverlapSignal(member.items, timeline.weekCount);
+        var activeTaskCount = member.items.length;
+
+        return {
+          assignee: member.assignee,
+          role: member.role,
+          activeTaskCount: activeTaskCount,
+          loadStatus: getLoadStatus(activeTaskCount),
+          overlappingWeekCount: overlapSignal.overlappingWeekCount,
+          maxConcurrentTasks: overlapSignal.maxConcurrentTasks,
+          hasOverlap: overlapSignal.hasOverlap
+        };
+      });
   }
 
   function escapeHtml(value) {
@@ -370,17 +470,25 @@
     );
   }
 
-  function renderHeader(timeline, items, rows) {
+  function renderHeader(timeline, metrics) {
     dom.headerDebug.innerHTML =
-      '<p class="muted">Current month: <strong>' +
+      '<div class="header-metrics">' +
+      '<div class="header-metric"><span class="header-metric-label">Current month</span><strong>' +
       escapeHtml(timeline.monthLabel) +
-      "</strong></p>" +
-      '<p class="muted">Visible tasks: <strong>' +
-      String(items.length) +
-      "</strong></p>" +
-      '<p class="muted">Assignee rows: <strong>' +
-      String(rows.length) +
-      "</strong></p>";
+      "</strong></div>" +
+      '<div class="header-metric"><span class="header-metric-label">Visible tasks</span><strong>' +
+      String(metrics.visibleTaskCount) +
+      "</strong></div>" +
+      '<div class="header-metric"><span class="header-metric-label">Assignees</span><strong>' +
+      String(metrics.assigneeCount) +
+      "</strong></div>" +
+      '<div class="header-metric"><span class="header-metric-label">Streams</span><strong>' +
+      String(metrics.streamCount) +
+      "</strong></div>" +
+      '<div class="header-metric"><span class="header-metric-label">Overloaded</span><strong>' +
+      String(metrics.overloadedCount) +
+      "</strong></div>" +
+      "</div>";
   }
 
   function renderFilters() {
@@ -419,7 +527,7 @@
       "</select></label>" +
       '<label class="field"><span>Search</span><input type="search" name="search" value="' +
       escapeHtml(appState.filters.search) +
-      '" placeholder="Search title, notes, initiative" /></label>' +
+      '" placeholder="Search title, assignee, stream, initiative" /></label>' +
       "</form>";
   }
 
@@ -550,7 +658,7 @@
     var selectedItem = getSelectedTaskItem(items);
 
     if (!selectedItem) {
-      dom.detailsRoot.innerHTML = '<p class="muted">No task selected.</p>';
+      dom.detailsRoot.innerHTML = '<p class="muted">No task selected. Click any task block in the roadmap grid.</p>';
       return;
     }
 
@@ -602,27 +710,42 @@
       "</div>";
   }
 
-  function renderCapacity(rows) {
-    if (!rows.length) {
+  function renderCapacity(capacityData) {
+    if (!capacityData.length) {
       dom.capacityRoot.innerHTML = '<p class="muted">No visible workload in this month.</p>';
       return;
     }
 
     dom.capacityRoot.innerHTML =
       '<div class="capacity-list">' +
-      rows
-        .map(function (row) {
+      capacityData
+        .map(function (member) {
+          var overlapLabel = member.hasOverlap
+            ? "Overlap signal: " +
+              String(member.overlappingWeekCount) +
+              " week(s), peak " +
+              String(member.maxConcurrentTasks) +
+              " task(s)"
+            : "Overlap signal: none";
+
           return (
-            "<div>" +
+            '<div class="capacity-card">' +
             "<strong>" +
-            escapeHtml(row.assignee) +
+            escapeHtml(member.assignee) +
             "</strong>" +
+            '<span class="capacity-status capacity-status--' +
+            escapeHtml(member.loadStatus.toLowerCase()) +
+            '">' +
+            escapeHtml(member.loadStatus) +
+            "</span>" +
             '<p class="muted">' +
-            escapeHtml(row.role) +
-            " | Tasks: " +
-            String(row.items.length) +
-            " | Lanes: " +
-            String(row.laneCount) +
+            "Active tasks: " +
+            String(member.activeTaskCount) +
+            " | " +
+            escapeHtml(member.role) +
+            "</p>" +
+            '<p class="muted">' +
+            escapeHtml(overlapLabel) +
             "</p>" +
             "</div>"
           );
@@ -635,14 +758,16 @@
     var timeline = buildMonthTimeline(appState.selectedMonth);
     var items = buildVisibleTaskTimelineItems(tasks, timeline);
     var rows = groupTimelineRowsByAssignee(items);
+    var capacityData = buildCapacityData(items, timeline);
+    var metrics = getSummaryMetrics(items, capacityData);
 
     syncSelectedTask(items);
-    renderHeader(timeline, items, rows);
+    renderHeader(timeline, metrics);
     renderFilters();
     renderMonthNavigation();
     renderRoadmap(timeline, rows);
     renderDetails(items);
-    renderCapacity(rows);
+    renderCapacity(capacityData);
   }
 
   function handleFilterChange(event) {
