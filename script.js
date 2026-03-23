@@ -52,10 +52,7 @@
       return "";
     }
 
-    var year = date.getFullYear();
-    var month = String(date.getMonth() + 1).padStart(2, "0");
-
-    return year + "-" + month;
+    return String(date.getFullYear()) + "-" + String(date.getMonth() + 1).padStart(2, "0");
   }
 
   function getMonthLabel(monthKey) {
@@ -65,13 +62,22 @@
       return "";
     }
 
-    var year = Number(parts[0]);
-    var monthIndex = Number(parts[1]) - 1;
-    var date = new Date(year, monthIndex, 1);
+    var date = new Date(Number(parts[0]), Number(parts[1]) - 1, 1);
 
     return date.toLocaleDateString("en-US", {
       month: "long",
       year: "numeric"
+    });
+  }
+
+  function formatShortDate(date) {
+    if (!(date instanceof Date) || Number.isNaN(date.getTime())) {
+      return "";
+    }
+
+    return date.toLocaleDateString("en-US", {
+      month: "short",
+      day: "numeric"
     });
   }
 
@@ -84,24 +90,22 @@
 
     var year = Number(parts[0]);
     var monthIndex = Number(parts[1]) - 1;
-    var start = new Date(year, monthIndex, 1);
-    var end = new Date(year, monthIndex + 1, 0);
 
     return {
-      start: start,
-      end: end
+      start: new Date(year, monthIndex, 1),
+      end: new Date(year, monthIndex + 1, 0)
     };
   }
 
   function buildWeekRangesForMonth(monthKey) {
     var monthRange = getMonthRange(monthKey);
+    var weeks = [];
 
     if (!monthRange) {
-      return [];
+      return weeks;
     }
 
     var cursor = new Date(monthRange.start.getFullYear(), monthRange.start.getMonth(), monthRange.start.getDate());
-    var weeks = [];
 
     while (cursor <= monthRange.end) {
       var weekStart = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate());
@@ -112,9 +116,11 @@
       }
 
       weeks.push({
-        label: toIsoDate(weekStart) + " to " + toIsoDate(weekEnd),
+        index: weeks.length,
         start: weekStart,
-        end: weekEnd
+        end: weekEnd,
+        key: toIsoDate(weekStart),
+        label: formatShortDate(weekStart) + " - " + formatShortDate(weekEnd)
       });
 
       cursor = new Date(cursor.getFullYear(), cursor.getMonth(), cursor.getDate() + 7);
@@ -123,26 +129,59 @@
     return weeks;
   }
 
-  function taskOverlapsMonth(task, monthKey) {
+  function buildMonthTimeline(monthKey) {
     var monthRange = getMonthRange(monthKey);
-    var startDate = parseDate(task.startDate);
-    var endDate = parseDate(task.endDate);
+    var weeks = buildWeekRangesForMonth(monthKey);
 
-    if (!monthRange || !startDate || !endDate) {
-      return false;
+    if (!monthRange) {
+      return null;
     }
 
-    return startDate <= monthRange.end && endDate >= monthRange.start;
+    return {
+      monthKey: monthKey,
+      monthLabel: getMonthLabel(monthKey),
+      start: monthRange.start,
+      end: monthRange.end,
+      weeks: weeks,
+      weekCount: weeks.length
+    };
   }
 
-  function filterTasksByMonth(taskList, monthKey) {
-    return taskList.filter(function (task) {
-      return taskOverlapsMonth(task, monthKey);
+  function getMonthKeys(taskList) {
+    var seen = {};
+
+    taskList.forEach(function (task) {
+      var startDate = parseDate(task.startDate);
+      var endDate = parseDate(task.endDate);
+
+      if (!startDate || !endDate) {
+        return;
+      }
+
+      var cursor = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
+      var limit = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
+
+      while (cursor <= limit) {
+        seen[toMonthKey(cursor)] = true;
+        cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
+      }
     });
+
+    return Object.keys(seen).sort();
+  }
+
+  function getUniqueValues(taskList, key) {
+    var values = {};
+
+    taskList.forEach(function (task) {
+      values[task[key]] = true;
+    });
+
+    return Object.keys(values).sort();
   }
 
   function filterTasks(taskList, filters) {
-    var normalizedSearch = String(filters.search || "").trim().toLowerCase();
+    var searchValue = String(filters.search || "").trim().toLowerCase();
 
     return taskList.filter(function (task) {
       var matchesAssignee = filters.assignee === "all" || task.assignee === filters.assignee;
@@ -159,65 +198,164 @@
       ]
         .join(" ")
         .toLowerCase();
-      var matchesSearch = !normalizedSearch || searchableText.indexOf(normalizedSearch) !== -1;
+      var matchesSearch = !searchValue || searchableText.indexOf(searchValue) !== -1;
 
       return matchesAssignee && matchesStream && matchesStatus && matchesSearch;
     });
   }
 
-  function getUniqueValues(taskList, key) {
-    var seen = {};
-
-    taskList.forEach(function (task) {
-      seen[task[key]] = true;
-    });
-
-    return Object.keys(seen).sort();
+  function overlapsRange(startDate, endDate, rangeStart, rangeEnd) {
+    return startDate <= rangeEnd && endDate >= rangeStart;
   }
 
-  function getMonthKeys(taskList) {
-    var keys = {};
-
-    taskList.forEach(function (task) {
-      var startDate = parseDate(task.startDate);
-      var endDate = parseDate(task.endDate);
-
-      if (!startDate || !endDate) {
-        return;
-      }
-
-      var cursor = new Date(startDate.getFullYear(), startDate.getMonth(), 1);
-      var limit = new Date(endDate.getFullYear(), endDate.getMonth(), 1);
-
-      while (cursor <= limit) {
-        keys[toMonthKey(cursor)] = true;
-        cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1);
-      }
+  function findWeekIndexForDate(date, weeks, fallbackToLast) {
+    var index = weeks.findIndex(function (week) {
+      return date >= week.start && date <= week.end;
     });
 
-    return Object.keys(keys).sort();
-  }
-
-  function getVisibleTasks() {
-    var monthTasks = filterTasksByMonth(tasks, appState.selectedMonth);
-    return filterTasks(monthTasks, appState.filters);
-  }
-
-  function getSelectedTask(visibleTasks) {
-    var selectedTask = visibleTasks.find(function (task) {
-      return task.id === appState.selectedTaskId;
-    });
-
-    if (selectedTask) {
-      return selectedTask;
+    if (index !== -1) {
+      return index;
     }
 
-    return visibleTasks[0] || null;
+    return fallbackToLast ? weeks.length - 1 : 0;
   }
 
-  function syncSelectedTask(visibleTasks) {
-    var selectedTask = getSelectedTask(visibleTasks);
-    appState.selectedTaskId = selectedTask ? selectedTask.id : "";
+  function buildTaskTimelineItem(task, timeline) {
+    var startDate = parseDate(task.startDate);
+    var endDate = parseDate(task.endDate);
+    var belongsToMonth = !!(
+      timeline &&
+      startDate &&
+      endDate &&
+      overlapsRange(startDate, endDate, timeline.start, timeline.end)
+    );
+
+    if (!belongsToMonth) {
+      return {
+        task: task,
+        belongsToMonth: false
+      };
+    }
+
+    var visibleStart = startDate < timeline.start ? timeline.start : startDate;
+    var visibleEnd = endDate > timeline.end ? timeline.end : endDate;
+    var startWeekIndex = findWeekIndexForDate(visibleStart, timeline.weeks, false);
+    var endWeekIndex = findWeekIndexForDate(visibleEnd, timeline.weeks, true);
+    var span = endWeekIndex - startWeekIndex + 1;
+
+    return {
+      task: task,
+      belongsToMonth: true,
+      startsBeforeMonth: startDate < timeline.start,
+      endsAfterMonth: endDate > timeline.end,
+      overlapsPartially: startDate < timeline.start || endDate > timeline.end,
+      originalStartDate: startDate,
+      originalEndDate: endDate,
+      visibleStartDate: visibleStart,
+      visibleEndDate: visibleEnd,
+      startWeekIndex: startWeekIndex,
+      endWeekIndex: endWeekIndex,
+      span: span
+    };
+  }
+
+  function buildVisibleTaskTimelineItems(taskList, timeline) {
+    return filterTasks(taskList, appState.filters)
+      .map(function (task) {
+        return buildTaskTimelineItem(task, timeline);
+      })
+      .filter(function (item) {
+        return item.belongsToMonth;
+      });
+  }
+
+  function sortTaskTimelineItems(items) {
+    return items.slice().sort(function (left, right) {
+      if (left.startWeekIndex !== right.startWeekIndex) {
+        return left.startWeekIndex - right.startWeekIndex;
+      }
+
+      if (left.endWeekIndex !== right.endWeekIndex) {
+        return left.endWeekIndex - right.endWeekIndex;
+      }
+
+      return left.task.title.localeCompare(right.task.title);
+    });
+  }
+
+  function assignTaskLanes(items) {
+    var laneEndIndexes = [];
+
+    return sortTaskTimelineItems(items).map(function (item) {
+      var laneIndex = laneEndIndexes.findIndex(function (endWeekIndex) {
+        return item.startWeekIndex > endWeekIndex;
+      });
+
+      if (laneIndex === -1) {
+        laneIndex = laneEndIndexes.length;
+        laneEndIndexes.push(item.endWeekIndex);
+      } else {
+        laneEndIndexes[laneIndex] = item.endWeekIndex;
+      }
+
+      item.laneIndex = laneIndex;
+      item.gridColumnStart = item.startWeekIndex + 1;
+      item.gridColumnEnd = item.endWeekIndex + 2;
+      return item;
+    });
+  }
+
+  function groupTimelineRowsByAssignee(items) {
+    var rowsByAssignee = {};
+
+    items.forEach(function (item) {
+      if (!rowsByAssignee[item.task.assignee]) {
+        rowsByAssignee[item.task.assignee] = {
+          assignee: item.task.assignee,
+          role: item.task.role,
+          items: []
+        };
+      }
+
+      rowsByAssignee[item.task.assignee].items.push(item);
+    });
+
+    return Object.keys(rowsByAssignee)
+      .sort()
+      .map(function (assignee) {
+        var row = rowsByAssignee[assignee];
+        row.items = assignTaskLanes(row.items);
+        row.laneCount = row.items.reduce(function (maxValue, item) {
+          return Math.max(maxValue, item.laneIndex + 1);
+        }, 0);
+        return row;
+      });
+  }
+
+  function getSelectedTaskItem(items) {
+    var selectedItem = items.find(function (item) {
+      return item.task.id === appState.selectedTaskId;
+    });
+
+    if (selectedItem) {
+      return selectedItem;
+    }
+
+    return items[0] || null;
+  }
+
+  function syncSelectedTask(items) {
+    var selectedItem = getSelectedTaskItem(items);
+    appState.selectedTaskId = selectedItem ? selectedItem.task.id : "";
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
   }
 
   function createOptionMarkup(value, label, isSelected) {
@@ -232,22 +370,16 @@
     );
   }
 
-  function escapeHtml(value) {
-    return String(value)
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/"/g, "&quot;")
-      .replace(/'/g, "&#39;");
-  }
-
-  function renderHeader(visibleTasks) {
+  function renderHeader(timeline, items, rows) {
     dom.headerDebug.innerHTML =
       '<p class="muted">Current month: <strong>' +
-      escapeHtml(getMonthLabel(appState.selectedMonth)) +
+      escapeHtml(timeline.monthLabel) +
       "</strong></p>" +
       '<p class="muted">Visible tasks: <strong>' +
-      String(visibleTasks.length) +
+      String(items.length) +
+      "</strong></p>" +
+      '<p class="muted">Assignee rows: <strong>' +
+      String(rows.length) +
       "</strong></p>";
   }
 
@@ -256,40 +388,34 @@
     var streams = getUniqueValues(tasks, "stream");
     var statuses = getUniqueValues(tasks, "status");
 
-    var assigneeOptions = [createOptionMarkup("all", "All assignees", appState.filters.assignee === "all")]
-      .concat(
-        assignees.map(function (value) {
-          return createOptionMarkup(value, value, value === appState.filters.assignee);
-        })
-      )
-      .join("");
-
-    var streamOptions = [createOptionMarkup("all", "All streams", appState.filters.stream === "all")]
-      .concat(
-        streams.map(function (value) {
-          return createOptionMarkup(value, value, value === appState.filters.stream);
-        })
-      )
-      .join("");
-
-    var statusOptions = [createOptionMarkup("all", "All statuses", appState.filters.status === "all")]
-      .concat(
-        statuses.map(function (value) {
-          return createOptionMarkup(value, value, value === appState.filters.status);
-        })
-      )
-      .join("");
-
     dom.filtersRoot.innerHTML =
-      '<form class="filters-grid" id="filters-form">' +
+      '<form class="filters-grid">' +
       '<label class="field"><span>Assignee</span><select name="assignee">' +
-      assigneeOptions +
+      [createOptionMarkup("all", "All assignees", appState.filters.assignee === "all")]
+        .concat(
+          assignees.map(function (value) {
+            return createOptionMarkup(value, value, appState.filters.assignee === value);
+          })
+        )
+        .join("") +
       "</select></label>" +
       '<label class="field"><span>Stream</span><select name="stream">' +
-      streamOptions +
+      [createOptionMarkup("all", "All streams", appState.filters.stream === "all")]
+        .concat(
+          streams.map(function (value) {
+            return createOptionMarkup(value, value, appState.filters.stream === value);
+          })
+        )
+        .join("") +
       "</select></label>" +
       '<label class="field"><span>Status</span><select name="status">' +
-      statusOptions +
+      [createOptionMarkup("all", "All statuses", appState.filters.status === "all")]
+        .concat(
+          statuses.map(function (value) {
+            return createOptionMarkup(value, value, appState.filters.status === value);
+          })
+        )
+        .join("") +
       "</select></label>" +
       '<label class="field"><span>Search</span><input type="search" name="search" value="' +
       escapeHtml(appState.filters.search) +
@@ -318,84 +444,112 @@
       "</div>";
   }
 
-  function renderRoadmap(visibleTasks) {
-    var weekRanges = buildWeekRangesForMonth(appState.selectedMonth);
+  function renderRoadmap(timeline, rows) {
+    if (!timeline || !timeline.weeks.length) {
+      dom.roadmapRoot.innerHTML = '<p class="muted">No month timeline available.</p>';
+      return;
+    }
 
-    if (!visibleTasks.length) {
+    if (!rows.length) {
       dom.roadmapRoot.innerHTML =
         '<p class="muted">No tasks match the selected month and filters.</p>' +
-        '<div class="week-list">' +
-        weekRanges
+        '<div class="timeline-grid timeline-grid--header-only">' +
+        '<div class="timeline-corner">Assignee</div>' +
+        '<div class="timeline-weeks">' +
+        timeline.weeks
           .map(function (week) {
-            return '<div class="pill">' + escapeHtml(week.label) + "</div>";
+            return '<div class="timeline-week-cell">' + escapeHtml(week.label) + "</div>";
           })
           .join("") +
+        "</div>" +
         "</div>";
       return;
     }
 
     dom.roadmapRoot.innerHTML =
-      '<div class="debug-meta"><p>Weeks in month</p></div>' +
-      '<div class="week-list">' +
-      weekRanges
+      '<div class="roadmap-debug-summary">' +
+      '<p class="muted">Week columns: ' +
+      String(timeline.weekCount) +
+      " | Timeline: " +
+      escapeHtml(formatShortDate(timeline.start)) +
+      " - " +
+      escapeHtml(formatShortDate(timeline.end)) +
+      "</p>" +
+      "</div>" +
+      '<div class="timeline-grid">' +
+      '<div class="timeline-corner">Assignee</div>' +
+      '<div class="timeline-weeks">' +
+      timeline.weeks
         .map(function (week) {
-          return '<div class="pill">' + escapeHtml(week.label) + "</div>";
+          return '<div class="timeline-week-cell">' + escapeHtml(week.label) + "</div>";
         })
         .join("") +
       "</div>" +
-      '<hr />' +
-      '<div class="task-list">' +
-      visibleTasks
-        .map(function (task) {
-          var isSelected = task.id === appState.selectedTaskId;
-
+      rows
+        .map(function (row) {
           return (
-            '<article class="task-card' +
-            (isSelected ? " is-selected" : "") +
-            '" data-task-id="' +
-            escapeHtml(task.id) +
-            '">' +
-            '<div class="task-title-row"><strong>' +
-            escapeHtml(task.title) +
-            "</strong><span>" +
-            escapeHtml(task.status) +
-            "</span></div>" +
-            '<div class="task-meta-row"><span>' +
-            escapeHtml(task.assignee) +
-            "</span><span>" +
-            escapeHtml(task.stream) +
-            "</span></div>" +
-            '<div class="pill-row"><span class="pill">' +
-            escapeHtml(task.taskType) +
-            '</span><span class="pill">' +
-            escapeHtml(task.startDate) +
-            " to " +
-            escapeHtml(task.endDate) +
-            "</span></div>" +
-            '<pre class="code-block">' +
-            escapeHtml(
-              JSON.stringify(
-                {
-                  id: task.id,
-                  initiative: task.initiative,
-                  objective: task.objective
-                },
-                null,
-                2
-              )
-            ) +
-            "</pre>" +
-            "</article>"
+            '<div class="timeline-assignee-cell">' +
+            "<strong>" +
+            escapeHtml(row.assignee) +
+            "</strong>" +
+            '<p class="muted">' +
+            escapeHtml(row.role) +
+            " | Lanes: " +
+            String(row.laneCount) +
+            "</p>" +
+            "</div>" +
+            '<div class="timeline-lanes" style="--week-count:' +
+            String(timeline.weekCount) +
+            ";--lane-count:" +
+            String(row.laneCount) +
+            ';">' +
+            row.items
+              .map(function (item) {
+                return (
+                  '<button class="timeline-task' +
+                  (item.task.id === appState.selectedTaskId ? " is-selected" : "") +
+                  '" type="button" data-task-id="' +
+                  escapeHtml(item.task.id) +
+                  '" style="grid-column:' +
+                  String(item.gridColumnStart) +
+                  " / " +
+                  String(item.gridColumnEnd) +
+                  ";grid-row:" +
+                  String(item.laneIndex + 1) +
+                  ';">' +
+                  '<span class="timeline-task-title">' +
+                  escapeHtml(item.task.title) +
+                  "</span>" +
+                  '<span class="timeline-task-meta">' +
+                  escapeHtml(item.task.stream) +
+                  " | " +
+                  escapeHtml(item.task.status) +
+                  "</span>" +
+                  '<span class="timeline-task-flags">' +
+                  (item.startsBeforeMonth ? "&larr; " : "") +
+                  "W" +
+                  String(item.startWeekIndex + 1) +
+                  " - W" +
+                  String(item.endWeekIndex + 1) +
+                  " | span " +
+                  String(item.span) +
+                  (item.endsAfterMonth ? " &rarr;" : "") +
+                  "</span>" +
+                  "</button>"
+                );
+              })
+              .join("") +
+            "</div>"
           );
         })
         .join("") +
       "</div>";
   }
 
-  function renderDetails(visibleTasks) {
-    var selectedTask = getSelectedTask(visibleTasks);
+  function renderDetails(items) {
+    var selectedItem = getSelectedTaskItem(items);
 
-    if (!selectedTask) {
+    if (!selectedItem) {
       dom.detailsRoot.innerHTML = '<p class="muted">No task selected.</p>';
       return;
     }
@@ -403,60 +557,52 @@
     dom.detailsRoot.innerHTML =
       '<div class="details-list">' +
       '<p><strong>ID:</strong> ' +
-      escapeHtml(selectedTask.id) +
+      escapeHtml(selectedItem.task.id) +
       "</p>" +
       '<p><strong>Title:</strong> ' +
-      escapeHtml(selectedTask.title) +
+      escapeHtml(selectedItem.task.title) +
       "</p>" +
       '<p><strong>Assignee:</strong> ' +
-      escapeHtml(selectedTask.assignee) +
+      escapeHtml(selectedItem.task.assignee) +
       " (" +
-      escapeHtml(selectedTask.role) +
+      escapeHtml(selectedItem.task.role) +
       ")</p>" +
+      '<p><strong>Month overlap:</strong> ' +
+      String(selectedItem.belongsToMonth) +
+      "</p>" +
+      '<p><strong>Week placement:</strong> start W' +
+      String(selectedItem.startWeekIndex + 1) +
+      ", end W" +
+      String(selectedItem.endWeekIndex + 1) +
+      ", span " +
+      String(selectedItem.span) +
+      "</p>" +
+      '<p><strong>Visible range:</strong> ' +
+      escapeHtml(toIsoDate(selectedItem.visibleStartDate)) +
+      " to " +
+      escapeHtml(toIsoDate(selectedItem.visibleEndDate)) +
+      "</p>" +
+      '<p><strong>Original range:</strong> ' +
+      escapeHtml(selectedItem.task.startDate) +
+      " to " +
+      escapeHtml(selectedItem.task.endDate) +
+      "</p>" +
       '<p><strong>Initiative:</strong> ' +
-      escapeHtml(selectedTask.initiative) +
+      escapeHtml(selectedItem.task.initiative) +
       "</p>" +
       '<p><strong>Objective:</strong> ' +
-      escapeHtml(selectedTask.objective) +
-      "</p>" +
-      '<p><strong>Dates:</strong> ' +
-      escapeHtml(selectedTask.startDate) +
-      " to " +
-      escapeHtml(selectedTask.endDate) +
-      "</p>" +
-      '<p><strong>Type:</strong> ' +
-      escapeHtml(selectedTask.taskType) +
+      escapeHtml(selectedItem.task.objective) +
       "</p>" +
       '<p><strong>Notes:</strong> ' +
-      escapeHtml(selectedTask.notes) +
+      escapeHtml(selectedItem.task.notes) +
       "</p>" +
       '<p><strong>Jira:</strong> <a href="' +
-      escapeHtml(selectedTask.jiraUrl) +
+      escapeHtml(selectedItem.task.jiraUrl) +
       '" target="_blank" rel="noreferrer">Open ticket</a></p>' +
       "</div>";
   }
 
-  function renderCapacity(visibleTasks) {
-    var capacityByAssignee = {};
-
-    visibleTasks.forEach(function (task) {
-      if (!capacityByAssignee[task.assignee]) {
-        capacityByAssignee[task.assignee] = {
-          assignee: task.assignee,
-          role: task.role,
-          count: 0
-        };
-      }
-
-      capacityByAssignee[task.assignee].count += 1;
-    });
-
-    var rows = Object.keys(capacityByAssignee)
-      .sort()
-      .map(function (key) {
-        return capacityByAssignee[key];
-      });
-
+  function renderCapacity(rows) {
     if (!rows.length) {
       dom.capacityRoot.innerHTML = '<p class="muted">No visible workload in this month.</p>';
       return;
@@ -465,16 +611,18 @@
     dom.capacityRoot.innerHTML =
       '<div class="capacity-list">' +
       rows
-        .map(function (item) {
+        .map(function (row) {
           return (
             "<div>" +
             "<strong>" +
-            escapeHtml(item.assignee) +
+            escapeHtml(row.assignee) +
             "</strong>" +
-            "<p class=\"muted\">" +
-            escapeHtml(item.role) +
-            " | Visible tasks: " +
-            String(item.count) +
+            '<p class="muted">' +
+            escapeHtml(row.role) +
+            " | Tasks: " +
+            String(row.items.length) +
+            " | Lanes: " +
+            String(row.laneCount) +
             "</p>" +
             "</div>"
           );
@@ -484,24 +632,25 @@
   }
 
   function render() {
-    var visibleTasks = getVisibleTasks();
-    syncSelectedTask(visibleTasks);
-    renderHeader(visibleTasks);
+    var timeline = buildMonthTimeline(appState.selectedMonth);
+    var items = buildVisibleTaskTimelineItems(tasks, timeline);
+    var rows = groupTimelineRowsByAssignee(items);
+
+    syncSelectedTask(items);
+    renderHeader(timeline, items, rows);
     renderFilters();
     renderMonthNavigation();
-    renderRoadmap(visibleTasks);
-    renderDetails(visibleTasks);
-    renderCapacity(visibleTasks);
+    renderRoadmap(timeline, rows);
+    renderDetails(items);
+    renderCapacity(rows);
   }
 
   function handleFilterChange(event) {
-    var target = event.target;
-
-    if (!target || !target.name) {
+    if (!event.target || !event.target.name) {
       return;
     }
 
-    appState.filters[target.name] = target.value;
+    appState.filters[event.target.name] = event.target.value;
     render();
   }
 
@@ -517,21 +666,14 @@
   }
 
   function handleTaskClick(event) {
-    var taskCard = event.target.closest("[data-task-id]");
+    var taskButton = event.target.closest("[data-task-id]");
 
-    if (!taskCard) {
+    if (!taskButton) {
       return;
     }
 
-    appState.selectedTaskId = taskCard.getAttribute("data-task-id") || "";
+    appState.selectedTaskId = taskButton.getAttribute("data-task-id") || "";
     render();
-  }
-
-  function bindEvents() {
-    dom.filtersRoot.addEventListener("input", handleFilterChange);
-    dom.filtersRoot.addEventListener("change", handleFilterChange);
-    dom.monthNavigationRoot.addEventListener("click", handleMonthClick);
-    dom.roadmapRoot.addEventListener("click", handleTaskClick);
   }
 
   function cacheDom() {
@@ -543,9 +685,17 @@
     dom.capacityRoot = document.getElementById("capacity-root");
   }
 
+  function bindEvents() {
+    dom.filtersRoot.addEventListener("input", handleFilterChange);
+    dom.filtersRoot.addEventListener("change", handleFilterChange);
+    dom.monthNavigationRoot.addEventListener("click", handleMonthClick);
+    dom.roadmapRoot.addEventListener("click", handleTaskClick);
+  }
+
   function initializeState() {
     var monthKeys = getMonthKeys(tasks);
     var currentMonthKey = toMonthKey(new Date());
+
     appState.selectedMonth = monthKeys.indexOf(currentMonthKey) !== -1 ? currentMonthKey : monthKeys[0] || "";
     appState.selectedTaskId = "";
   }
