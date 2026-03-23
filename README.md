@@ -5,7 +5,7 @@
 ## Файлы
 
 - `index.html` - семантический каркас страницы с секциями-заглушками
-- `styles.css` - только структурные стили для базовой раскладки
+- `styles.css` - desktop-first layout, roadmap grid structure и базовые interactive states
 - `data.js` - реалистичный sample dataset на несколько месяцев
 - `script.js` - состояние приложения, утилиты, фильтрация и debug-рендер
 
@@ -28,6 +28,8 @@
 - Summary metrics для видимых задач, assignees, streams и overloaded members
 - Базовый grid-рендер для проверки корректности раскладки без финального UI
 - Capacity panel с monthly active task counts, load status и weekly overlap signal по assignee
+- Desktop-first planning layout с header card, month bar, main roadmap card и правой sidebar
+- Sticky assignee column и sticky week header внутри roadmap grid
 
 ## Что намеренно не сделано
 

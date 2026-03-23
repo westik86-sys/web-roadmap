@@ -563,7 +563,9 @@
         '<p class="muted">No tasks match the selected month and filters.</p>' +
         '<div class="timeline-grid timeline-grid--header-only">' +
         '<div class="timeline-corner">Assignee</div>' +
-        '<div class="timeline-weeks">' +
+        '<div class="timeline-weeks" style="--week-count:' +
+        String(timeline.weekCount) +
+        ';">' +
         timeline.weeks
           .map(function (week) {
             return '<div class="timeline-week-cell">' + escapeHtml(week.label) + "</div>";
@@ -586,7 +588,9 @@
       "</div>" +
       '<div class="timeline-grid">' +
       '<div class="timeline-corner">Assignee</div>' +
-      '<div class="timeline-weeks">' +
+      '<div class="timeline-weeks" style="--week-count:' +
+      String(timeline.weekCount) +
+      ';">' +
       timeline.weeks
         .map(function (week) {
           return '<div class="timeline-week-cell">' + escapeHtml(week.label) + "</div>";

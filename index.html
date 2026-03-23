@@ -8,48 +8,77 @@
   </head>
   <body>
     <div class="page">
-      <header class="panel page-header">
-        <div>
-          <p class="eyebrow">Roadmap</p>
-          <h1>Design Team Roadmap</h1>
+      <header class="page-header panel">
+        <div class="page-header-copy">
+          <div>
+            <p class="eyebrow">Roadmap</p>
+            <h1>Design Team Roadmap</h1>
+          </div>
+          <p class="page-header-description">
+            Monthly planning workspace for design streams, assignments, and team load.
+          </p>
         </div>
         <div id="header-debug" class="debug-meta"></div>
       </header>
 
-      <main class="layout">
-        <section class="panel filters-section" aria-labelledby="filters-title">
-          <div class="section-heading">
-            <h2 id="filters-title">Filters</h2>
-          </div>
-          <div id="filters-root"></div>
-        </section>
-
-        <section class="panel navigation-section" aria-labelledby="navigation-title">
-          <div class="section-heading">
+      <section class="month-bar panel" aria-labelledby="navigation-title">
+        <div class="section-heading section-heading--inline">
+          <div>
+            <p class="section-kicker">Planning Window</p>
             <h2 id="navigation-title">Month Navigation</h2>
           </div>
-          <div id="month-navigation-root"></div>
+          <p class="section-note">Switch the active month to inspect work distribution and overlaps.</p>
+        </div>
+        <div id="month-navigation-root"></div>
+      </section>
+
+      <main class="layout">
+        <section class="main-column">
+          <section class="filters-section panel" aria-labelledby="filters-title">
+            <div class="section-heading section-heading--inline">
+              <div>
+                <p class="section-kicker">Slice</p>
+                <h2 id="filters-title">Filters</h2>
+              </div>
+              <p class="section-note">Refine the roadmap by person, stream, status, or search.</p>
+            </div>
+            <div id="filters-root"></div>
+          </section>
+
+          <section class="roadmap-section panel" aria-labelledby="roadmap-title">
+            <div class="section-heading section-heading--inline">
+              <div>
+                <p class="section-kicker">Timeline</p>
+                <h2 id="roadmap-title">Roadmap</h2>
+              </div>
+              <p class="section-note">Assignees stay pinned while the weekly timeline scrolls horizontally.</p>
+            </div>
+            <div id="roadmap-root"></div>
+          </section>
         </section>
 
-        <section class="panel roadmap-section" aria-labelledby="roadmap-title">
-          <div class="section-heading">
-            <h2 id="roadmap-title">Roadmap Area</h2>
-          </div>
-          <div id="roadmap-root"></div>
-        </section>
+        <aside class="sidebar">
+          <section class="details-section panel" aria-labelledby="details-title">
+            <div class="section-heading section-heading--inline">
+              <div>
+                <p class="section-kicker">Focus</p>
+                <h2 id="details-title">Details</h2>
+              </div>
+              <p class="section-note">Selected task context and timeline placement.</p>
+            </div>
+            <div id="details-root"></div>
+          </section>
 
-        <aside class="panel details-section" aria-labelledby="details-title">
-          <div class="section-heading">
-            <h2 id="details-title">Details Area</h2>
-          </div>
-          <div id="details-root"></div>
-        </aside>
-
-        <aside class="panel capacity-section" aria-labelledby="capacity-title">
-          <div class="section-heading">
-            <h2 id="capacity-title">Capacity Area</h2>
-          </div>
-          <div id="capacity-root"></div>
+          <section class="capacity-section panel" aria-labelledby="capacity-title">
+            <div class="section-heading section-heading--inline">
+              <div>
+                <p class="section-kicker">Load</p>
+                <h2 id="capacity-title">Capacity</h2>
+              </div>
+              <p class="section-note">Monthly load per person with overlap signals.</p>
+            </div>
+            <div id="capacity-root"></div>
+          </section>
         </aside>
       </main>
     </div>
