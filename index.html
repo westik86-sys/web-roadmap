@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Design Team Roadmap</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="panel page-header">
+        <div>
+          <p class="eyebrow">Roadmap</p>
+          <h1>Design Team Roadmap</h1>
+        </div>
+        <div id="header-debug" class="debug-meta"></div>
+      </header>
+
+      <main class="layout">
+        <section class="panel filters-section" aria-labelledby="filters-title">
+          <div class="section-heading">
+            <h2 id="filters-title">Filters</h2>
+          </div>
+          <div id="filters-root"></div>
+        </section>
+
+        <section class="panel navigation-section" aria-labelledby="navigation-title">
+          <div class="section-heading">
+            <h2 id="navigation-title">Month Navigation</h2>
+          </div>
+          <div id="month-navigation-root"></div>
+        </section>
+
+        <section class="panel roadmap-section" aria-labelledby="roadmap-title">
+          <div class="section-heading">
+            <h2 id="roadmap-title">Roadmap Area</h2>
+          </div>
+          <div id="roadmap-root"></div>
+        </section>
+
+        <aside class="panel details-section" aria-labelledby="details-title">
+          <div class="section-heading">
+            <h2 id="details-title">Details Area</h2>
+          </div>
+          <div id="details-root"></div>
+        </aside>
+
+        <aside class="panel capacity-section" aria-labelledby="capacity-title">
+          <div class="section-heading">
+            <h2 id="capacity-title">Capacity Area</h2>
+          </div>
+          <div id="capacity-root"></div>
+        </aside>
+      </main>
+    </div>
+
+    <script src="data.js"></script>
+    <script src="script.js"></script>
+  </body>
+</html>

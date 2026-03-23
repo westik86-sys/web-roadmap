@@ -1,0 +1,164 @@
+:root {
+  color-scheme: light;
+  font-family: "SF Mono", "Monaco", "Menlo", monospace;
+  line-height: 1.5;
+  font-weight: 400;
+  background: #f4f4f1;
+  color: #1f1f1f;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.page {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 16px;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(280px, 1fr);
+  gap: 16px;
+}
+
+.panel {
+  background: #ffffff;
+  border: 1px solid #d6d6cf;
+  padding: 16px;
+}
+
+.page-header,
+.filters-section,
+.navigation-section,
+.roadmap-section {
+  grid-column: 1 / 2;
+}
+
+.details-section,
+.capacity-section {
+  grid-column: 2 / 3;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.section-heading {
+  margin-bottom: 12px;
+}
+
+.section-heading h2,
+h1,
+p {
+  margin: 0;
+}
+
+.eyebrow {
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  color: #5b5b55;
+}
+
+.debug-meta,
+.muted {
+  color: #5b5b55;
+}
+
+.filters-grid,
+.month-list,
+.task-list,
+.details-list,
+.capacity-list,
+.week-list {
+  display: grid;
+  gap: 8px;
+}
+
+.filters-grid {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.field {
+  display: grid;
+  gap: 4px;
+}
+
+.month-list {
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+}
+
+.month-button,
+.task-card {
+  border: 1px solid #d6d6cf;
+  background: #fafaf8;
+  padding: 10px;
+  text-align: left;
+}
+
+.month-button[aria-pressed="true"],
+.task-card.is-selected {
+  border-color: #1f1f1f;
+  background: #efefe9;
+}
+
+.task-card {
+  cursor: pointer;
+}
+
+.task-title-row,
+.task-meta-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.pill {
+  display: inline-block;
+  padding: 2px 6px;
+  border: 1px solid #d6d6cf;
+}
+
+.code-block {
+  margin: 0;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+
+  .page-header,
+  .filters-section,
+  .navigation-section,
+  .roadmap-section,
+  .details-section,
+  .capacity-section {
+    grid-column: auto;
+  }
+}
