@@ -5,9 +5,11 @@
 ## Файлы
 
 - `index.html` - семантический каркас страницы с секциями-заглушками
-- `styles.css` - desktop-first layout, roadmap grid structure и базовые interactive states
+- `styles.css` - общий desktop-first layout, design tokens и shared UI styles
+- `timeline.css` - изолированные стили блока roadmap timeline
 - `data.js` - реалистичный sample dataset на несколько месяцев
-- `script.js` - состояние приложения, утилиты, фильтрация и debug-рендер
+- `timeline.js` - самостоятельный timeline component для рендера блока задач
+- `script.js` - состояние приложения, утилиты, фильтрация и orchestration рендера
 
 ## Запуск
 
@@ -30,6 +32,8 @@
 - Capacity panel с monthly active task counts, load status и weekly overlap signal по assignee
 - Desktop-first planning layout с header card, month bar, main roadmap card и правой sidebar
 - Sticky assignee column и sticky week header внутри roadmap grid
+- Финальная visual system polish с CSS variables, grouped details panel и status-based task styling
+- Изолированный timeline component, который можно редактировать отдельно от остального интерфейса
 
 ## Что намеренно не сделано
 

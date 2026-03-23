@@ -470,6 +470,27 @@
     );
   }
 
+  function toToken(value) {
+    return String(value || "")
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "");
+  }
+
+  function renderEmptyState(title, description) {
+    return (
+      '<div class="empty-state">' +
+      '<strong class="empty-state-title">' +
+      escapeHtml(title) +
+      "</strong>" +
+      '<p class="empty-state-description">' +
+      escapeHtml(description) +
+      "</p>" +
+      "</div>"
+    );
+  }
+
   function renderHeader(timeline, metrics) {
     dom.headerDebug.innerHTML =
       '<div class="header-metrics">' +
@@ -553,170 +574,113 @@
   }
 
   function renderRoadmap(timeline, rows) {
-    if (!timeline || !timeline.weeks.length) {
-      dom.roadmapRoot.innerHTML = '<p class="muted">No month timeline available.</p>';
+    if (!window.RoadmapTimeline || typeof window.RoadmapTimeline.render !== "function") {
+      dom.roadmapRoot.innerHTML = renderEmptyState(
+        "Timeline component unavailable",
+        "Check that timeline.js is loaded correctly before rendering the roadmap."
+      );
       return;
     }
 
-    if (!rows.length) {
-      dom.roadmapRoot.innerHTML =
-        '<p class="muted">No tasks match the selected month and filters.</p>' +
-        '<div class="timeline-grid timeline-grid--header-only">' +
-        '<div class="timeline-corner">Assignee</div>' +
-        '<div class="timeline-weeks" style="--week-count:' +
-        String(timeline.weekCount) +
-        ';">' +
-        timeline.weeks
-          .map(function (week) {
-            return '<div class="timeline-week-cell">' + escapeHtml(week.label) + "</div>";
-          })
-          .join("") +
-        "</div>" +
-        "</div>";
-      return;
-    }
-
-    dom.roadmapRoot.innerHTML =
-      '<div class="roadmap-debug-summary">' +
-      '<p class="muted">Week columns: ' +
-      String(timeline.weekCount) +
+    var summaryLabel =
+      "Week columns: " +
+      String(timeline ? timeline.weekCount : 0) +
       " | Timeline: " +
-      escapeHtml(formatShortDate(timeline.start)) +
+      formatShortDate(timeline ? timeline.start : null) +
       " - " +
-      escapeHtml(formatShortDate(timeline.end)) +
-      "</p>" +
-      "</div>" +
-      '<div class="timeline-grid">' +
-      '<div class="timeline-corner">Assignee</div>' +
-      '<div class="timeline-weeks" style="--week-count:' +
-      String(timeline.weekCount) +
-      ';">' +
-      timeline.weeks
-        .map(function (week) {
-          return '<div class="timeline-week-cell">' + escapeHtml(week.label) + "</div>";
-        })
-        .join("") +
-      "</div>" +
-      rows
-        .map(function (row) {
-          return (
-            '<div class="timeline-assignee-cell">' +
-            "<strong>" +
-            escapeHtml(row.assignee) +
-            "</strong>" +
-            '<p class="muted">' +
-            escapeHtml(row.role) +
-            " | Lanes: " +
-            String(row.laneCount) +
-            "</p>" +
-            "</div>" +
-            '<div class="timeline-lanes" style="--week-count:' +
-            String(timeline.weekCount) +
-            ";--lane-count:" +
-            String(row.laneCount) +
-            ';">' +
-            row.items
-              .map(function (item) {
-                return (
-                  '<button class="timeline-task' +
-                  (item.task.id === appState.selectedTaskId ? " is-selected" : "") +
-                  '" type="button" data-task-id="' +
-                  escapeHtml(item.task.id) +
-                  '" style="grid-column:' +
-                  String(item.gridColumnStart) +
-                  " / " +
-                  String(item.gridColumnEnd) +
-                  ";grid-row:" +
-                  String(item.laneIndex + 1) +
-                  ';">' +
-                  '<span class="timeline-task-title">' +
-                  escapeHtml(item.task.title) +
-                  "</span>" +
-                  '<span class="timeline-task-meta">' +
-                  escapeHtml(item.task.stream) +
-                  " | " +
-                  escapeHtml(item.task.status) +
-                  "</span>" +
-                  '<span class="timeline-task-flags">' +
-                  (item.startsBeforeMonth ? "&larr; " : "") +
-                  "W" +
-                  String(item.startWeekIndex + 1) +
-                  " - W" +
-                  String(item.endWeekIndex + 1) +
-                  " | span " +
-                  String(item.span) +
-                  (item.endsAfterMonth ? " &rarr;" : "") +
-                  "</span>" +
-                  "</button>"
-                );
-              })
-              .join("") +
-            "</div>"
-          );
-        })
-        .join("") +
-      "</div>";
+      formatShortDate(timeline ? timeline.end : null);
+
+    dom.roadmapRoot.innerHTML = window.RoadmapTimeline.render({
+      timeline: timeline,
+      rows: rows,
+      selectedTaskId: appState.selectedTaskId,
+      summaryLabel: summaryLabel
+    });
   }
 
   function renderDetails(items) {
     var selectedItem = getSelectedTaskItem(items);
 
     if (!selectedItem) {
-      dom.detailsRoot.innerHTML = '<p class="muted">No task selected. Click any task block in the roadmap grid.</p>';
+      dom.detailsRoot.innerHTML = renderEmptyState(
+        "No task selected",
+        "Select any task bar in the roadmap to inspect timing, ownership, and context."
+      );
       return;
     }
 
     dom.detailsRoot.innerHTML =
       '<div class="details-list">' +
-      '<p><strong>ID:</strong> ' +
-      escapeHtml(selectedItem.task.id) +
-      "</p>" +
-      '<p><strong>Title:</strong> ' +
+      '<section class="details-group">' +
+      '<p class="details-group-label">Task</p>' +
+      '<div class="details-field details-field--emphasis"><span class="details-label">Title</span><strong>' +
       escapeHtml(selectedItem.task.title) +
-      "</p>" +
-      '<p><strong>Assignee:</strong> ' +
+      "</strong></div>" +
+      '<div class="details-field"><span class="details-label">ID</span><span>' +
+      escapeHtml(selectedItem.task.id) +
+      "</span></div>" +
+      '<div class="details-field"><span class="details-label">Status</span><span class="details-status details-status--' +
+      escapeHtml(toToken(selectedItem.task.status)) +
+      '">' +
+      escapeHtml(selectedItem.task.status) +
+      "</span></div>" +
+      "</section>" +
+      '<section class="details-group">' +
+      '<p class="details-group-label">Ownership</p>' +
+      '<div class="details-field"><span class="details-label">Assignee</span><span>' +
       escapeHtml(selectedItem.task.assignee) +
-      " (" +
+      "</span></div>" +
+      '<div class="details-field"><span class="details-label">Role</span><span>' +
       escapeHtml(selectedItem.task.role) +
-      ")</p>" +
-      '<p><strong>Month overlap:</strong> ' +
-      String(selectedItem.belongsToMonth) +
-      "</p>" +
-      '<p><strong>Week placement:</strong> start W' +
-      String(selectedItem.startWeekIndex + 1) +
-      ", end W" +
-      String(selectedItem.endWeekIndex + 1) +
-      ", span " +
-      String(selectedItem.span) +
-      "</p>" +
-      '<p><strong>Visible range:</strong> ' +
+      "</span></div>" +
+      '<div class="details-field"><span class="details-label">Stream</span><span>' +
+      escapeHtml(selectedItem.task.stream) +
+      "</span></div>" +
+      "</section>" +
+      '<section class="details-group">' +
+      '<p class="details-group-label">Timeline</p>' +
+      '<div class="details-field"><span class="details-label">Visible Range</span><span>' +
       escapeHtml(toIsoDate(selectedItem.visibleStartDate)) +
       " to " +
       escapeHtml(toIsoDate(selectedItem.visibleEndDate)) +
-      "</p>" +
-      '<p><strong>Original range:</strong> ' +
+      "</span></div>" +
+      '<div class="details-field"><span class="details-label">Original Range</span><span>' +
       escapeHtml(selectedItem.task.startDate) +
       " to " +
       escapeHtml(selectedItem.task.endDate) +
-      "</p>" +
-      '<p><strong>Initiative:</strong> ' +
+      "</span></div>" +
+      '<div class="details-field"><span class="details-label">Week Placement</span><span>W' +
+      String(selectedItem.startWeekIndex + 1) +
+      " to W" +
+      String(selectedItem.endWeekIndex + 1) +
+      " | span " +
+      String(selectedItem.span) +
+      "</span></div>" +
+      "</section>" +
+      '<section class="details-group">' +
+      '<p class="details-group-label">Planning Context</p>' +
+      '<div class="details-field"><span class="details-label">Initiative</span><span>' +
       escapeHtml(selectedItem.task.initiative) +
-      "</p>" +
-      '<p><strong>Objective:</strong> ' +
+      "</span></div>" +
+      '<div class="details-field"><span class="details-label">Objective</span><span>' +
       escapeHtml(selectedItem.task.objective) +
-      "</p>" +
-      '<p><strong>Notes:</strong> ' +
+      "</span></div>" +
+      '<div class="details-field details-field--stacked"><span class="details-label">Notes</span><span>' +
       escapeHtml(selectedItem.task.notes) +
-      "</p>" +
-      '<p><strong>Jira:</strong> <a href="' +
+      "</span></div>" +
+      '<a class="details-link" href="' +
       escapeHtml(selectedItem.task.jiraUrl) +
-      '" target="_blank" rel="noreferrer">Open ticket</a></p>' +
+      '" target="_blank" rel="noreferrer">Open Jira Ticket</a>' +
+      "</section>" +
       "</div>";
   }
 
   function renderCapacity(capacityData) {
     if (!capacityData.length) {
-      dom.capacityRoot.innerHTML = '<p class="muted">No visible workload in this month.</p>';
+      dom.capacityRoot.innerHTML = renderEmptyState(
+        "No visible workload",
+        "No assignees are active in the current month and filter combination."
+      );
       return;
     }
 
